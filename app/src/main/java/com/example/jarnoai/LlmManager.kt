@@ -11,6 +11,7 @@ class LlmManager(private val context: Context) {
             val options = LlmInference.LlmInferenceOptions.builder()
                 .setModelPath(modelPath)
                 .setMaxTokens(512)
+                .setDelegate(LlmInference.Delegate.CPU) // Memaksa menggunakan CPU untuk menghindari error OpenCL
                 .build()
             
             llmInference = LlmInference.createFromOptions(context, options)
