@@ -138,8 +138,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         return result
     }
 
-    private fun refreshModelList() {
-        val modelFiles = filesDir.listFiles { file -> file.extension == "bin" }?.map { it.name } ?: emptyList()
+       private fun refreshModelList() {
+        // Mendukung file berformat .bin ATAU .task
+        val modelFiles = filesDir.listFiles { file -> 
+            file.extension == "bin" || file.extension == "task" 
+        }?.map { it.name } ?: emptyList()
 
         if (modelFiles.isNotEmpty()) {
             val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, modelFiles)
@@ -153,7 +156,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 override fun onNothingSelected(parent: AdapterView<*>) {}
             }
         } else {
-            txtResponse.text = "Jarno: Pilih file model .bin terlebih dahulu."
+            txtResponse.text = "Jarno: Belum ada file model .bin atau .task di memori aplikasi."
         }
     }
 
