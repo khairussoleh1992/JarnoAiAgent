@@ -1,9 +1,17 @@
 package com.example.jarnoai
 
+import android.animation.ObjectAnimator
+import android.animation.PropertyValuesHolder
+import android.animation.ValueAnimator
 import android.content.Intent
+import android.database.Cursor
+import android.net.Uri
 import android.os.Bundle
+
+import android.provider.OpenableColumns
 import android.speech.RecognizerIntent
 import android.speech.tts.TextToSpeech
+import android.view.View
 import android.view.WindowManager
 import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
@@ -21,9 +29,13 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var txtStatus: TextView
     private lateinit var txtResponse: TextView
     private lateinit var btnCall: Button
+    private lateinit var btnBrowseModel: Button
+    private lateinit var spinnerModels: Spinner
+    private lateinit var jarvisCore: View
     private lateinit var tts: TextToSpeech
 
     private var isCalling = false
+    private var pulseAnimator: ObjectAnimator? = null
 
     private val speechRecognizerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK && isCalling) {
@@ -31,29 +43,35 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             if (spokenText.isNotBlank()) {
                 processAI(spokenText)
             } else {
-                listenToUser() // Dengar lagi jika kosong
+                listenToUser()
             }
         } else {
             endCall()
         }
     }
 
+    private val filePickerLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { saveFileToInternalStorage(it) }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // Layar tetap menyala selama aplikasi terbuka
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         txtStatus = findViewById(R.id.txtStatus)
         txtResponse = findViewById(R.id.txtResponse)
         btnCall = findViewById(R.id.btnCall)
+        btnBrowseModel = findViewById(R.id.btnBrowseModel)
+        spinnerModels = findViewById(R.id.spinnerModels)
+        jarvisCore = findViewById(R.id.jarvisCore)
 
         llmManager = LlmManager(applicationContext)
         tts = TextToSpeech(this, this)
+        refreshModelList()
 
-        // Otomatis load model pertama yang ditemukan di memori
-        autoLoadDefaultModel()
+        btnBrowseModel.setOnClickListener { filePickerLauncher.launch(arrayOf("*/*")) }
 
         btnCall.setOnClickListener {
             if (!isCalling) {
@@ -68,9 +86,10 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         isCalling = true
         btnCall.text = "AKHIRI PANGGILAN"
         btnCall.setBackgroundColor(android.graphics.Color.RED)
-        txtStatus.text = "JARNO TERHUBUNG (MENDENGAR...)"
+        txtStatus.text = "STATUS: TERHUBUNG (MENDENGAR...)"
 
-        // Jalankan Foreground Service agar tetap hidup di background
+        startJarvisAnimation()
+
         val serviceIntent = Intent(this, JarnoForegroundService::class.java)
         startForegroundService(serviceIntent)
 
@@ -81,9 +100,31 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         isCalling = false
         btnCall.text = "MULAI PANGGILAN"
         btnCall.setBackgroundColor(android.graphics.Color.parseColor("#00C853"))
-        txtStatus.text = "PANGGILAN BERAKHIR"
+        txtStatus.text = "STATUS: PANGGILAN BERAKHIR"
+        
+        stopJarvisAnimation()
         tts.stop()
         stopService(Intent(this, JarnoForegroundService::class.java))
+    }
+
+    private fun startJarvisAnimation() {
+        val scaleX = PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1.25f)
+        val scaleY = PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1.25f)
+        val alpha = PropertyValuesHolder.ofFloat(View.ALPHA, 0.5f, 1f)
+
+        pulseAnimator = ObjectAnimator.ofPropertyValuesHolder(jarvisCore, scaleX, scaleY, alpha).apply {
+            duration = 800
+            repeatCount = ValueAnimator.INFINITE
+            repeatMode = ValueAnimator.REVERSE
+            start()
+        }
+    }
+
+    private fun stopJarvisAnimation() {
+        pulseAnimator?.cancel()
+        jarvisCore.scaleX = 1f
+        jarvisCore.scaleY = 1f
+        jarvisCore.alpha = 1f
     }
 
     private fun listenToUser() {
@@ -102,10 +143,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun processAI(prompt: String) {
-        txtStatus.text = "JARNO BERPIKIR..."
+        txtStatus.text = "STATUS: JARNO BERPIKIR..."
         txtResponse.text = "User: $prompt\n\nMemproses..."
 
-        // Cek apakah user minta membaca layar atau kontrol HP
         val accessibility = JarnoAccessibilityService.instance
         var screenContext = ""
         if (prompt.lowercase().contains("baca layar") && accessibility != null) {
@@ -118,16 +158,13 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             val response = llmManager.generateResponse(finalPrompt)
             withContext(Dispatchers.Main) {
                 txtResponse.text = "User: $prompt\n\nJarno: $response"
-                txtStatus.text = "JARNO BERBICARA..."
+                txtStatus.text = "STATUS: JARNO BERBICARA..."
                 
-                // Jarvis berbicara
                 tts.speak(response, TextToSpeech.QUEUE_FLUSH, null, "TTS_ID")
 
-                // Setelah selesai bicara, lanjut mendengarkan lagi (Looping Call)
                 if (isCalling) {
-                    // Tunggu sebentar atau langsung dengar lagi setelah TTS selesai
                     lifecycleScope.launch {
-                        kotlinx.coroutines.delay(3000) // Jeda singkat
+                        kotlinx.coroutines.delay(3000)
                         if (isCalling) listenToUser()
                     }
                 }
@@ -135,38 +172,76 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
-        private lateinit var jarvisCore: View
-    private var pulseAnimator: android.animation.AnimatorSet? = null
+    private fun saveFileToInternalStorage(uri: Uri) {
+        val fileName = getFileName(uri) ?: "model.task"
+        val destinationFile = File(filesDir, fileName)
 
-    // Di dalam onCreate(), tambahkan:
-    // jarvisCore = findViewById(R.id.jarvisCore)
-
-    private fun startJarvisAnimation() {
-        val scaleX = android.animation.PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1.25f)
-        val scaleY = android.animation.PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1.25f)
-        val alpha = android.animation.PropertyValuesHolder.ofFloat(View.ALPHA, 0.5f, 1f)
-
-        pulseAnimator = android.animation.ObjectAnimator.ofPropertyValuesHolder(jarvisCore, scaleX, scaleY, alpha).apply {
-            duration = 800
-            repeatCount = android.animation.ValueAnimator.INFINITE
-            repeatMode = android.animation.ValueAnimator.REVERSE
-            start()
+        try {
+            contentResolver.openInputStream(uri)?.use { inputStream ->
+                destinationFile.outputStream().use { outputStream ->
+                    inputStream.copyTo(outputStream)
+                }
+            }
+            Toast.makeText(this, "Model disimpan: $fileName", Toast.LENGTH_SHORT).show()
+            refreshModelList()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Gagal menyalin: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
-    private fun stopJarvisAnimation() {
-        pulseAnimator?.cancel()
-        jarvisCore.scaleX = 1f
-        jarvisCore.scaleY = 1f
-        jarvisCore.alpha = 1f
+    private fun getFileName(uri: Uri): String? {
+        var result: String? = null
+        if (uri.scheme == "content") {
+            val cursor: Cursor? = contentResolver.query(uri, null, null, null, null)
+            cursor?.use {
+                if (it.moveToFirst()) {
+                    val index = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (index != -1) result = it.getString(index)
+                }
+            }
+        }
+        if (result == null) {
+            result = uri.path
+            val cut = result?.lastIndexOf('/')
+            if (cut != null && cut != -1) {
+                result = result?.substring(cut + 1)
+            }
+        }
+        return result
     }
-    
-    private fun autoLoadDefaultModel() {
+
+    private fun refreshModelList() {
         val modelFiles = filesDir.listFiles { file -> file.extension == "bin" || file.extension == "task" }?.map { it.name } ?: emptyList()
+
         if (modelFiles.isNotEmpty()) {
-            val modelPath = File(filesDir, modelFiles[0]).absolutePath
-            lifecycleScope.launch(Dispatchers.IO) {
-                llmManager.loadModel(modelPath)
+            val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, modelFiles)
+            spinnerModels.adapter = adapter
+            loadSelectedModel(modelFiles[0])
+
+            spinnerModels.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(parent: AdapterView<*>, view: View?, position: Int, id: Long) {
+                    loadSelectedModel(modelFiles[position])
+                }
+                override fun onNothingSelected(parent: AdapterView<*>) {}
+            }
+        } else {
+            txtResponse.text = "Jarno: Belum ada file model .task/.bin. Silakan klik tombol 'AMBIL FILE MODEL BARU' di atas."
+        }
+    }
+
+    private fun loadSelectedModel(fileName: String) {
+        val modelPath = File(filesDir, fileName).absolutePath
+        txtStatus.text = "STATUS: MEMUAT $fileName..."
+        lifecycleScope.launch(Dispatchers.IO) {
+            val result = llmManager.loadModel(modelPath)
+            withContext(Dispatchers.Main) {
+                if (result == "SUKSES") {
+                    txtStatus.text = "STATUS: SIAP"
+                    txtResponse.text = "Model $fileName berhasil dimuat. Siap melakukan panggilan."
+                } else {
+                    txtStatus.text = "STATUS: GAGAL"
+                    txtResponse.text = result
+                }
             }
         }
     }
