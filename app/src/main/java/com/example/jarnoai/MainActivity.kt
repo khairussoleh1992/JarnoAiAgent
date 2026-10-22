@@ -1,12 +1,10 @@
 package com.example.jarnoai
 
 import android.content.Intent
-import android.database.Cursor
-import android.net.Uri
 import android.os.Bundle
-import android.provider.OpenableColumns
 import android.speech.RecognizerIntent
 import android.speech.tts.TextToSpeech
+import android.view.WindowManager
 import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -20,157 +18,129 @@ import java.util.*
 class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private lateinit var llmManager: LlmManager
-    private lateinit var inputPrompt: EditText
-    private lateinit var btnSend: Button
-    private lateinit var btnMic: Button
-    private lateinit var btnBrowseModel: Button
+    private lateinit var txtStatus: TextView
     private lateinit var txtResponse: TextView
-    private lateinit var spinnerModels: Spinner
+    private lateinit var btnCall: Button
     private lateinit var tts: TextToSpeech
 
+    private var isCalling = false
+
     private val speechRecognizerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == RESULT_OK) {
+        if (result.resultCode == RESULT_OK && isCalling) {
             val spokenText = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.get(0) ?: ""
-            inputPrompt.setText(spokenText)
             if (spokenText.isNotBlank()) {
                 processAI(spokenText)
+            } else {
+                listenToUser() // Dengar lagi jika kosong
             }
+        } else {
+            endCall()
         }
-    }
-
-    private val filePickerLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let { saveFileToInternalStorage(it) }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        inputPrompt = findViewById(R.id.inputPrompt)
-        btnSend = findViewById(R.id.btnSend)
-        btnMic = findViewById(R.id.btnMic)
-        btnBrowseModel = findViewById(R.id.btnBrowseModel)
+        // Layar tetap menyala selama aplikasi terbuka
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        txtStatus = findViewById(R.id.txtStatus)
         txtResponse = findViewById(R.id.txtResponse)
-        spinnerModels = findViewById(R.id.spinnerModels)
+        btnCall = findViewById(R.id.btnCall)
 
         llmManager = LlmManager(applicationContext)
         tts = TextToSpeech(this, this)
-        refreshModelList()
 
-        btnBrowseModel.setOnClickListener { filePickerLauncher.launch(arrayOf("*/*")) }
+        // Otomatis load model pertama yang ditemukan di memori
+        autoLoadDefaultModel()
 
-        btnMic.setOnClickListener {
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "id-ID")
-                putExtra(RecognizerIntent.EXTRA_PROMPT, "Bicara pada Jarno...")
-            }
-            try {
-                speechRecognizerLauncher.launch(intent)
-            } catch (e: Exception) {
-                Toast.makeText(this, "Fitur suara tidak didukung.", Toast.LENGTH_SHORT).show()
+        btnCall.setOnClickListener {
+            if (!isCalling) {
+                startCall()
+            } else {
+                endCall()
             }
         }
+    }
 
-        btnSend.setOnClickListener {
-            val prompt = inputPrompt.text.toString()
-            if (prompt.isNotBlank()) {
-                processAI(prompt)
-            }
+    private fun startCall() {
+        isCalling = true
+        btnCall.text = "AKHIRI PANGGILAN"
+        btnCall.setBackgroundColor(android.graphics.Color.RED)
+        txtStatus.text = "JARNO TERHUBUNG (MENDENGAR...)"
+
+        // Jalankan Foreground Service agar tetap hidup di background
+        val serviceIntent = Intent(this, JarnoForegroundService::class.java)
+        startForegroundService(serviceIntent)
+
+        listenToUser()
+    }
+
+    private fun endCall() {
+        isCalling = false
+        btnCall.text = "MULAI PANGGILAN"
+        btnCall.setBackgroundColor(android.graphics.Color.parseColor("#00C853"))
+        txtStatus.text = "PANGGILAN BERAKHIR"
+        tts.stop()
+        stopService(Intent(this, JarnoForegroundService::class.java))
+    }
+
+    private fun listenToUser() {
+        if (!isCalling) return
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "id-ID")
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Bicara pada Jarno...")
+        }
+        try {
+            speechRecognizerLauncher.launch(intent)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Fitur suara error.", Toast.LENGTH_SHORT).show()
+            endCall()
         }
     }
 
     private fun processAI(prompt: String) {
-        // Contoh jika ingin Jarno membaca teks layar secara otomatis saat diperintah
-        val screenContent = if (prompt.lowercase().contains("baca layar")) {
-            JarnoAccessibilityService.instance?.getScreenText() ?: "Layanan aksesibilitas belum aktif."
-        } else {
-            ""
+        txtStatus.text = "JARNO BERPIKIR..."
+        txtResponse.text = "User: $prompt\n\nMemproses..."
+
+        // Cek apakah user minta membaca layar atau kontrol HP
+        val accessibility = JarnoAccessibilityService.instance
+        var screenContext = ""
+        if (prompt.lowercase().contains("baca layar") && accessibility != null) {
+            screenContext = "\n[Isi Layar HP Saat Ini:\n${accessibility.getScreenText()}]"
         }
 
-        val finalPrompt = if (screenContent.isNotBlank()) "Konteks Layar:\n$screenContent\n\nPerintah: $prompt" else prompt
+        val finalPrompt = "$prompt $screenContext"
 
-        txtResponse.append("\n\nUser: $prompt\nJarno: Memproses...")
         lifecycleScope.launch(Dispatchers.IO) {
             val response = llmManager.generateResponse(finalPrompt)
             withContext(Dispatchers.Main) {
-                txtResponse.text = response
-                tts.speak(response, TextToSpeech.QUEUE_FLUSH, null, null)
-            }
-        }
-    }
+                txtResponse.text = "User: $prompt\n\nJarno: $response"
+                txtStatus.text = "JARNO BERBICARA..."
+                
+                // Jarvis berbicara
+                tts.speak(response, TextToSpeech.QUEUE_FLUSH, null, "TTS_ID")
 
-    private fun saveFileToInternalStorage(uri: Uri) {
-        val fileName = getFileName(uri) ?: "model.bin"
-        val destinationFile = File(filesDir, fileName)
-
-        try {
-            contentResolver.openInputStream(uri)?.use { inputStream ->
-                destinationFile.outputStream().use { outputStream ->
-                    inputStream.copyTo(outputStream)
-                }
-            }
-            Toast.makeText(this, "Model disimpan: $fileName", Toast.LENGTH_SHORT).show()
-            refreshModelList()
-        } catch (e: Exception) {
-            Toast.makeText(this, "Gagal menyalin: ${e.message}", Toast.LENGTH_LONG).show()
-        }
-    }
-
-        private fun getFileName(uri: Uri): String? {
-        var result: String? = null
-        if (uri.scheme == "content") {
-            val cursor: Cursor? = contentResolver.query(uri, null, null, null, null)
-            cursor?.use {
-                if (it.moveToFirst()) {
-                    val index = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                    if (index != -1) result = it.getString(index)
+                // Setelah selesai bicara, lanjut mendengarkan lagi (Looping Call)
+                if (isCalling) {
+                    // Tunggu sebentar atau langsung dengar lagi setelah TTS selesai
+                    lifecycleScope.launch {
+                        kotlinx.coroutines.delay(3000) // Jeda singkat
+                        if (isCalling) listenToUser()
+                    }
                 }
             }
         }
-        if (result == null) {
-            result = uri.path
-            val cut = result?.lastIndexOf('/')
-            if (cut != null && cut != -1) {
-                result = result?.substring(cut + 1) // <-- Perbaikan di sini (sebelumnya cut!)
-            }
-        }
-        return result
     }
 
-       private fun refreshModelList() {
-        // Mendukung file berformat .bin ATAU .task
-        val modelFiles = filesDir.listFiles { file -> 
-            file.extension == "bin" || file.extension == "task" 
-        }?.map { it.name } ?: emptyList()
-
+    private fun autoLoadDefaultModel() {
+        val modelFiles = filesDir.listFiles { file -> file.extension == "bin" || file.extension == "task" }?.map { it.name } ?: emptyList()
         if (modelFiles.isNotEmpty()) {
-            val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, modelFiles)
-            spinnerModels.adapter = adapter
-            loadSelectedModel(modelFiles[0])
-
-            spinnerModels.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-                override fun onItemSelected(parent: AdapterView<*>, view: android.view.View?, position: Int, id: Long) {
-                    loadSelectedModel(modelFiles[position])
-                }
-                override fun onNothingSelected(parent: AdapterView<*>) {}
-            }
-        } else {
-            txtResponse.text = "Jarno: Belum ada file model .bin atau .task di memori aplikasi."
-        }
-    }
-
-        private fun loadSelectedModel(fileName: String) {
-        val modelPath = File(filesDir, fileName).absolutePath
-        txtResponse.text = "Memuat model $fileName..."
-        lifecycleScope.launch(Dispatchers.IO) {
-            val resultMessage = llmManager.loadModel(modelPath)
-            withContext(Dispatchers.Main) {
-                if (resultMessage == "SUKSES") {
-                    txtResponse.text = "Jarno online. Model $fileName siap digunakan."
-                } else {
-                    txtResponse.text = resultMessage // Menampilkan pesan error spesifik
-                }
+            val modelPath = File(filesDir, modelFiles[0]).absolutePath
+            lifecycleScope.launch(Dispatchers.IO) {
+                llmManager.loadModel(modelPath)
             }
         }
     }
@@ -182,10 +152,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     override fun onDestroy() {
-        if (::tts.isInitialized) {
-            tts.stop()
-            tts.shutdown()
-        }
+        endCall()
         super.onDestroy()
     }
 }
