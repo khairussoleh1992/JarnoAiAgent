@@ -6,19 +6,19 @@ import com.google.mediapipe.tasks.genai.llminference.LlmInference
 class LlmManager(private val context: Context) {
     private var llmInference: LlmInference? = null
 
-        fun loadModel(modelPath: String): String {
+            fun loadModel(modelPath: String): String {
         return try {
             val options = LlmInference.LlmInferenceOptions.builder()
                 .setModelPath(modelPath)
                 .setMaxTokens(512)
                 .setTemperature(0.7f)
+                .setDelegate(LlmInference.Delegate.CPU) // Memaksa AI berjalan di CPU agar tidak bentrok dengan driver GPU HP
                 .build()
             
             llmInference = LlmInference.createFromOptions(context, options)
             "SUKSES"
         } catch (e: Exception) {
             e.printStackTrace()
-            // Mengembalikan pesan error asli dari sistem
             "Gagal memuat: ${e.localizedMessage ?: e.toString()}"
         }
     }
