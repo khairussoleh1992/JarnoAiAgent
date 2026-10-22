@@ -6,32 +6,59 @@
     android:orientation="vertical"
     android:padding="16dp">
 
+    <!-- Konfigurasi Model -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="JARNO CORE MODEL"
+        android:text="JARNO MODEL CONFIG"
         android:textColor="#00E5FF"
-        android:textSize="12sp"
+        android:textSize="11sp"
         android:textStyle="bold" />
 
     <Button
         android:id="@+id/btnBrowseModel"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="36dp"
         android:layout_marginTop="4dp"
-        android:layout_marginBottom="8dp"
+        android:layout_marginBottom="4dp"
         android:backgroundTint="#121826"
-        android:text="PILIH FILE MODEL (.bin)"
+        android:text="AMBIL FILE MODEL BARU (.task / .bin)"
         android:textColor="#00E5FF"
-        android:textSize="12sp"
+        android:textSize="10sp"
         android:textStyle="bold" />
 
     <Spinner
         android:id="@+id/spinnerModels"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="16dp"
+        android:layout_marginBottom="12dp"
         android:backgroundTint="#00E5FF" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginBottom="12dp"
+        android:background="#1F293D" />
+
+    <!-- INTI ANIMASI JARVIS (Lingkaran Neon) -->
+    <View
+        android:id="@+id/jarvisCore"
+        android:layout_width="70dp"
+        android:layout_height="70dp"
+        android:layout_gravity="center"
+        android:layout_marginBottom="8dp"
+        android:background="@drawable/jarvis_circle" />
+
+    <TextView
+        android:id="@+id/txtStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_marginBottom="12dp"
+        android:text="STATUS: SIAP"
+        android:textColor="#00E5FF"
+        android:textSize="14sp"
+        android:textStyle="bold" />
 
     <TextView
         android:id="@+id/txtResponse"
@@ -41,46 +68,18 @@
         android:layout_marginBottom="16dp"
         android:background="#121826"
         android:padding="12dp"
-        android:text="Jarno System Initializing..."
+        android:text="Tekan tombol panggil di bawah untuk mulai berbicara..."
         android:textColor="#E0F7FA"
-        android:textSize="14sp" />
+        android:textSize="13sp" />
 
-    <EditText
-        android:id="@+id/inputPrompt"
+    <Button
+        android:id="@+id/btnCall"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="8dp"
-        android:backgroundTint="#00E5FF"
-        android:hint="Perintah untuk Jarno..."
+        android:layout_height="54dp"
+        android:backgroundTint="#00C853"
+        android:text="MULAI PANGGILAN"
         android:textColor="#FFFFFF"
-        android:textColorHint="#546E7A" />
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal">
-
-        <Button
-            android:id="@+id/btnMic"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginRight="4dp"
-            android:backgroundTint="#00838F"
-            android:text="BICARA 🎤"
-            android:textColor="#FFFFFF"
-            android:textStyle="bold" />
-
-        <Button
-            android:id="@+id/btnSend"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginLeft="4dp"
-            android:backgroundTint="#00E5FF"
-            android:text="KIRIM"
-            android:textColor="#0A0E17"
-            android:textStyle="bold" />
-    </LinearLayout>
+        android:textSize="14sp"
+        android:textStyle="bold" />
 
 </LinearLayout>
