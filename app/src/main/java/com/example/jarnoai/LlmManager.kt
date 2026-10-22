@@ -10,7 +10,7 @@ class LlmManager(private val context: Context) {
         return try {
             val options = LlmInference.LlmInferenceOptions.builder()
                 .setModelPath(modelPath)
-                .setMaxTokens(512)
+                .setMaxTokens(150) // Dibatasi supaya tidak terlalu lama di CPU HP
                 .build()
             
             llmInference = LlmInference.createFromOptions(context, options)
@@ -23,7 +23,10 @@ class LlmManager(private val context: Context) {
 
     fun generateResponse(prompt: String): String {
         return try {
-            llmInference?.generateResponse(prompt) ?: "Model AI belum dimuat."
+            // Format template khusus Gemma supaya AI langsung paham konteks tanya-jawab
+            val formattedPrompt = "<start_of_turn>user\n$prompt<end_of_turn>\n<start_of_turn>model\n"
+            
+            llmInference?.generateResponse(formattedPrompt) ?: "Model AI belum dimuat."
         } catch (e: Exception) {
             "Error: ${e.message}"
         }
