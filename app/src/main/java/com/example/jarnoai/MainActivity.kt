@@ -7,9 +7,10 @@ import android.content.Intent
 import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
-
 import android.provider.OpenableColumns
+import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.view.View
 import android.view.WindowManager
@@ -36,19 +37,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private var isCalling = false
     private var pulseAnimator: ObjectAnimator? = null
-
-    private val speechRecognizerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == RESULT_OK && isCalling) {
-            val spokenText = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.get(0) ?: ""
-            if (spokenText.isNotBlank()) {
-                processAI(spokenText)
-            } else {
-                listenToUser()
-            }
-        } else {
-            endCall()
-        }
-    }
+    private var speechRecognizer: SpeechRecognizer? = null
 
     private val filePickerLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { saveFileToInternalStorage(it) }
@@ -69,6 +58,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
         llmManager = LlmManager(applicationContext)
         tts = TextToSpeech(this, this)
+        setupSpeechRecognizer()
         refreshModelList()
 
         btnBrowseModel.setOnClickListener { filePickerLauncher.launch(arrayOf("*/*")) }
@@ -82,11 +72,48 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
+    private fun setupSpeechRecognizer() {
+        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
+        speechRecognizer?.setRecognitionListener(object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) {
+                txtStatus.text = "STATUS: MENDENGAR..."
+            }
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {
+                txtStatus.text = "STATUS: MEMPROSES..."
+            }
+            override fun onError(error: Int) {
+                if (isCalling) {
+                    lifecycleScope.launch {
+                        kotlinx.coroutines.delay(1000)
+                        listenToUser()
+                    }
+                }
+            }
+            override fun onResults(results: Bundle?) {
+                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                if (!matches.isNullOrEmpty()) {
+                    val spokenText = matches[0]
+                    if (spokenText.isNotBlank()) {
+                        processAI(spokenText)
+                    } else if (isCalling) {
+                        listenToUser()
+                    }
+                } else if (isCalling) {
+                    listenToUser()
+                }
+            }
+            override fun onPartialResults(partialResults: Bundle?) {}
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
+    }
+
     private fun startCall() {
         isCalling = true
         btnCall.text = "AKHIRI PANGGILAN"
         btnCall.setBackgroundColor(android.graphics.Color.RED)
-        txtStatus.text = "STATUS: TERHUBUNG (MENDENGAR...)"
 
         startJarvisAnimation()
 
@@ -101,7 +128,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         btnCall.text = "MULAI PANGGILAN"
         btnCall.setBackgroundColor(android.graphics.Color.parseColor("#00C853"))
         txtStatus.text = "STATUS: PANGGILAN BERAKHIR"
-        
+
+        try {
+            speechRecognizer?.stopListening()
+        } catch (e: Exception) { }
+
         stopJarvisAnimation()
         tts.stop()
         stopService(Intent(this, JarnoForegroundService::class.java))
@@ -132,13 +163,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "id-ID")
-            putExtra(RecognizerIntent.EXTRA_PROMPT, "Bicara pada Jarno...")
         }
         try {
-            speechRecognizerLauncher.launch(intent)
+            speechRecognizer?.startListening(intent)
         } catch (e: Exception) {
-            Toast.makeText(this, "Fitur suara error.", Toast.LENGTH_SHORT).show()
-            endCall()
+            // Aman dari error
         }
     }
 
@@ -164,7 +193,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
                 if (isCalling) {
                     lifecycleScope.launch {
-                        kotlinx.coroutines.delay(3000)
+                        kotlinx.coroutines.delay(4000)
                         if (isCalling) listenToUser()
                     }
                 }
@@ -254,6 +283,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     override fun onDestroy() {
         endCall()
+        speechRecognizer?.destroy()
         super.onDestroy()
     }
 }
