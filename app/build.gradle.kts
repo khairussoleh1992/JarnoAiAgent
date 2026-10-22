@@ -25,8 +25,8 @@ android {
 }
 
 dependencies {
-    // Versi terbaru MediaPipe untuk mengatasi masalah driver GPU
-    implementation("com.google.mediapipe:tasks-genai:0.10.20")
+    // Kembali ke versi stabil agar build cepat (1-2 menit)
+    implementation("com.google.mediapipe:tasks-genai:0.10.14")
 
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
