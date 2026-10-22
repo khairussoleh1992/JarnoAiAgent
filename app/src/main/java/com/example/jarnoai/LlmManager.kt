@@ -6,30 +6,21 @@ import com.google.mediapipe.tasks.genai.llminference.LlmInference
 class LlmManager(private val context: Context) {
     private var llmInference: LlmInference? = null
 
-    fun loadModel(modelPath: String): String {
+    fun loadModel(modelPath: String): Boolean {
         return try {
             val options = LlmInference.LlmInferenceOptions.builder()
                 .setModelPath(modelPath)
                 .setMaxTokens(512)
-                .setDelegate(LlmInference.Delegate.CPU) // Memaksa murni pakai CPU untuk bypass error GPU HP
+                .setTemperature(0.7f)
                 .build()
             
             llmInference = LlmInference.createFromOptions(context, options)
-            "SUKSES"
+            true
         } catch (e: Exception) {
             e.printStackTrace()
-            "Gagal memuat: ${e.localizedMessage ?: e.toString()}"
+            false
         }
     }
-
-    fun generateResponse(prompt: String): String {
-        return try {
-            llmInference?.generateResponse(prompt) ?: "Model AI belum dimuat."
-        } catch (e: Exception) {
-            "Error: ${e.message}"
-        }
-    }
-}
 
     fun generateResponse(prompt: String): String {
         return try {
