@@ -6,19 +6,18 @@ import com.google.mediapipe.tasks.genai.llminference.LlmInference
 class LlmManager(private val context: Context) {
     private var llmInference: LlmInference? = null
 
-    fun loadModel(modelPath: String): Boolean {
+    fun loadModel(modelPath: String): String {
         return try {
             val options = LlmInference.LlmInferenceOptions.builder()
                 .setModelPath(modelPath)
                 .setMaxTokens(512)
-                .setTemperature(0.7f)
                 .build()
             
             llmInference = LlmInference.createFromOptions(context, options)
-            true
+            "SUKSES"
         } catch (e: Exception) {
             e.printStackTrace()
-            false
+            "Gagal memuat: ${e.localizedMessage ?: e.toString()}"
         }
     }
 
