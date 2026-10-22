@@ -11,8 +11,7 @@ class LlmManager(private val context: Context) {
             val options = LlmInference.LlmInferenceOptions.builder()
                 .setModelPath(modelPath)
                 .setMaxTokens(512)
-                .setTemperature(0.7f)
-                .build()
+                .build() // setTemperature dihapus karena tidak didukung di versi ini
             
             llmInference = LlmInference.createFromOptions(context, options)
             "SUKSES"
