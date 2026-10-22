@@ -25,7 +25,9 @@ android {
 }
 
 dependencies {
-    implementation("com.google.mediapipe:tasks-genai:0.10.14")
+    // Versi terbaru MediaPipe untuk mengatasi masalah driver GPU
+    implementation("com.google.mediapipe:tasks-genai:0.10.20")
+
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.11.0")
