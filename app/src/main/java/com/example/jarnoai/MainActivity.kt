@@ -135,6 +135,32 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
+        private lateinit var jarvisCore: View
+    private var pulseAnimator: android.animation.AnimatorSet? = null
+
+    // Di dalam onCreate(), tambahkan:
+    // jarvisCore = findViewById(R.id.jarvisCore)
+
+    private fun startJarvisAnimation() {
+        val scaleX = android.animation.PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1.25f)
+        val scaleY = android.animation.PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1.25f)
+        val alpha = android.animation.PropertyValuesHolder.ofFloat(View.ALPHA, 0.5f, 1f)
+
+        pulseAnimator = android.animation.ObjectAnimator.ofPropertyValuesHolder(jarvisCore, scaleX, scaleY, alpha).apply {
+            duration = 800
+            repeatCount = android.animation.ValueAnimator.INFINITE
+            repeatMode = android.animation.ValueAnimator.REVERSE
+            start()
+        }
+    }
+
+    private fun stopJarvisAnimation() {
+        pulseAnimator?.cancel()
+        jarvisCore.scaleX = 1f
+        jarvisCore.scaleY = 1f
+        jarvisCore.alpha = 1f
+    }
+    
     private fun autoLoadDefaultModel() {
         val modelFiles = filesDir.listFiles { file -> file.extension == "bin" || file.extension == "task" }?.map { it.name } ?: emptyList()
         if (modelFiles.isNotEmpty()) {
