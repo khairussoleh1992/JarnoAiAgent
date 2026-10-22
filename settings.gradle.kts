@@ -4,5 +4,5 @@ pluginManagement {
 dependencyResolutionManagement {
     repositories { google(); mavenCentral() }
 }
-rootProject.name = "XiaozhiAndroid"
+rootProject.name = "JarnoAiAgent"
 include(":app")
