@@ -11,6 +11,7 @@ class LlmManager(private val context: Context) {
             val options = LlmInference.LlmInferenceOptions.builder()
                 .setModelPath(modelPath)
                 .setMaxTokens(512)
+                .setDelegate(LlmInference.Delegate.CPU) // Memaksa murni pakai CPU untuk bypass error GPU HP
                 .build()
             
             llmInference = LlmInference.createFromOptions(context, options)
@@ -20,6 +21,15 @@ class LlmManager(private val context: Context) {
             "Gagal memuat: ${e.localizedMessage ?: e.toString()}"
         }
     }
+
+    fun generateResponse(prompt: String): String {
+        return try {
+            llmInference?.generateResponse(prompt) ?: "Model AI belum dimuat."
+        } catch (e: Exception) {
+            "Error: ${e.message}"
+        }
+    }
+}
 
     fun generateResponse(prompt: String): String {
         return try {
