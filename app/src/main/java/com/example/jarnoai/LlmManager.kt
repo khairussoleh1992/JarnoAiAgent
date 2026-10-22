@@ -6,7 +6,7 @@ import com.google.mediapipe.tasks.genai.llminference.LlmInference
 class LlmManager(private val context: Context) {
     private var llmInference: LlmInference? = null
 
-    fun loadModel(modelPath: String): Boolean {
+        fun loadModel(modelPath: String): String {
         return try {
             val options = LlmInference.LlmInferenceOptions.builder()
                 .setModelPath(modelPath)
@@ -15,10 +15,11 @@ class LlmManager(private val context: Context) {
                 .build()
             
             llmInference = LlmInference.createFromOptions(context, options)
-            true
+            "SUKSES"
         } catch (e: Exception) {
             e.printStackTrace()
-            false
+            // Mengembalikan pesan error asli dari sistem
+            "Gagal memuat: ${e.localizedMessage ?: e.toString()}"
         }
     }
 
