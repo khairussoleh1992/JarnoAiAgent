@@ -157,16 +157,16 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
-    private fun loadSelectedModel(fileName: String) {
+        private fun loadSelectedModel(fileName: String) {
         val modelPath = File(filesDir, fileName).absolutePath
         txtResponse.text = "Memuat model $fileName..."
         lifecycleScope.launch(Dispatchers.IO) {
-            val success = llmManager.loadModel(modelPath)
+            val resultMessage = llmManager.loadModel(modelPath)
             withContext(Dispatchers.Main) {
-                if (success) {
-                    txtResponse.text = "Jarno online. Model siap digunakan."
+                if (resultMessage == "SUKSES") {
+                    txtResponse.text = "Jarno online. Model $fileName siap digunakan."
                 } else {
-                    txtResponse.text = "Gagal memuat model $fileName."
+                    txtResponse.text = resultMessage // Menampilkan pesan error spesifik
                 }
             }
         }
