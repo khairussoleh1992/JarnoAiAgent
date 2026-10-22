@@ -5,6 +5,7 @@ import android.accessibilityservice.GestureDescription
 import android.graphics.Path
 import android.os.Bundle
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityEvent
 
 class JarnoAccessibilityService : AccessibilityService() {
 
@@ -16,6 +17,10 @@ class JarnoAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
+    }
+
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        // Wajib ada walau kosong
     }
 
     override fun onInterrupt() {
